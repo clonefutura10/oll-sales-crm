@@ -101,12 +101,31 @@ pipeline {
                         dir('backend') {
                             sh '''
                                 . venv/bin/activate
+                                echo "Creating logs directory..."
+                                mkdir -p logs
+                                
+                                echo "Verifying Django configuration..."
+                                python -c "import django; print('Django version:', django.get_version())"
+                                
+                                echo "Testing logging configuration..."
+                                python manage.py test_logging
+                                
+                                echo "Running Django system checks..."
+                                python manage.py check --verbosity=2
+                                
+                                echo "Creating database migrations (if needed)..."
+                                python manage.py makemigrations --check --dry-run || python manage.py makemigrations
+                                
+                                echo "Applying database migrations..."
+                                python manage.py migrate --verbosity=1
+                                
                                 echo "Running Django tests..."
-                                python manage.py test --verbosity=2
+                                python manage.py test --verbosity=2 --parallel=auto --settings=oll_crm.test_settings
                                 
                                 echo "Running pytest with coverage..."
-                                coverage run -m pytest
-                                coverage report
+                                export DJANGO_SETTINGS_MODULE=oll_crm.test_settings
+                                coverage run -m pytest -v
+                                coverage report --show-missing
                                 coverage xml
                             '''
                         }
