@@ -156,13 +156,17 @@ pipeline {
                             # Backend dependency check
                             cd backend
                             . venv/bin/activate
-                            echo "Running safety check (safety should already be installed from requirements-dev.txt)..."
+                            echo "Verifying safety package is available..."
+                            which safety || (echo "Safety not found in venv" && exit 1)
+                            echo "Running safety check..."
                             safety check --json > safety-report.json || true
+                            echo "Safety check completed. Report saved to safety-report.json"
                             
                             # Frontend dependency check
                             cd ../frontend
                             echo "Running npm audit..."
                             npm audit --audit-level=high --json > audit-report.json || true
+                            echo "NPM audit completed. Report saved to audit-report.json"
                         '''
                     }
                 }
