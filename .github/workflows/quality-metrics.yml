@@ -1,0 +1,311 @@
+name: Performance & Quality Metrics
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Run weekly on Monday at 2 AM
+  workflow_dispatch:
+
+jobs:
+  code-metrics:
+    name: Code Complexity & Metrics
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install Python analysis tools
+      run: |
+        pip install radon xenon mccabe complexity
+    
+    - name: Install Node.js analysis tools
+      run: |
+        npm install -g complexity-report jscpd
+    
+    - name: Analyze Python code complexity
+      run: |
+        cd backend
+        echo "## Python Code Metrics" > ../metrics-report.md
+        echo "" >> ../metrics-report.md
+        
+        echo "### Cyclomatic Complexity" >> ../metrics-report.md
+        radon cc . --show-complexity --average >> ../metrics-report.md || true
+        echo "" >> ../metrics-report.md
+        
+        echo "### Maintainability Index" >> ../metrics-report.md
+        radon mi . >> ../metrics-report.md || true
+        echo "" >> ../metrics-report.md
+        
+        echo "### Lines of Code" >> ../metrics-report.md
+        radon raw . >> ../metrics-report.md || true
+        echo "" >> ../metrics-report.md
+    
+    - name: Analyze JavaScript/TypeScript complexity
+      run: |
+        cd frontend
+        echo "## JavaScript/TypeScript Metrics" >> ../metrics-report.md
+        echo "" >> ../metrics-report.md
+        
+        echo "### Complexity Report" >> ../metrics-report.md
+        complexity-report --format=markdown --output=../complexity-report.md . || true
+        cat ../complexity-report.md >> ../metrics-report.md || true
+        echo "" >> ../metrics-report.md
+    
+    - name: Check for code duplication
+      run: |
+        echo "## Code Duplication Analysis" >> metrics-report.md
+        echo "" >> metrics-report.md
+        
+        echo "### Python Duplication" >> metrics-report.md
+        pip install jscpd
+        jscpd backend/ --reporters=markdown --output=./python-duplication.md || true
+        cat python-duplication.md >> metrics-report.md || true
+        echo "" >> metrics-report.md
+        
+        echo "### JavaScript/TypeScript Duplication" >> metrics-report.md
+        jscpd frontend/ --reporters=markdown --output=./js-duplication.md || true
+        cat js-duplication.md >> metrics-report.md || true
+    
+    - name: Upload metrics report
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-metrics-report
+        path: |
+          metrics-report.md
+          complexity-report.md
+          python-duplication.md
+          js-duplication.md
+
+  performance-testing:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install Python dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip install locust pytest-benchmark
+    
+    - name: Install Node.js dependencies
+      run: |
+        cd frontend
+        npm ci
+        npm install --save-dev lighthouse clinic autocannon
+    
+    - name: Run Django performance tests
+      run: |
+        cd backend
+        python manage.py test --settings=oll_crm.test_settings --keepdb || true
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+    
+    - name: Build frontend for performance testing
+      run: |
+        cd frontend
+        npm run build
+        npm start &
+        sleep 30
+    
+    - name: Run Lighthouse audit
+      run: |
+        npm install -g lighthouse
+        lighthouse http://localhost:3000 --output=json --output-path=lighthouse-report.json --chrome-flags="--headless --no-sandbox" || true
+    
+    - name: Run load testing with autocannon
+      run: |
+        npx autocannon -c 10 -d 30 http://localhost:3000 > load-test-report.txt || true
+    
+    - name: Upload performance reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-reports
+        path: |
+          lighthouse-report.json
+          load-test-report.txt
+
+  bundle-analysis:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+        npm install --save-dev @next/bundle-analyzer webpack-bundle-analyzer
+    
+    - name: Build with bundle analysis
+      run: |
+        cd frontend
+        ANALYZE=true npm run build
+    
+    - name: Upload bundle analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: bundle-analysis
+        path: frontend/.next/analyze
+
+  security-scan:
+    name: Advanced Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run Semgrep security scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/owasp-top-ten
+          p/django
+          p/react
+    
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-scan-results
+        path: |
+          trivy-results.sarif
+          semgrep-results.json
+
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [code-metrics, performance-testing, bundle-analysis, security-scan]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Generate quality report
+      run: |
+        echo "# Quality Gate Report" > quality-gate-report.md
+        echo "" >> quality-gate-report.md
+        echo "Generated on: $(date)" >> quality-gate-report.md
+        echo "" >> quality-gate-report.md
+        echo "## Job Results" >> quality-gate-report.md
+        echo "- Code Metrics: ${{ needs.code-metrics.result }}" >> quality-gate-report.md
+        echo "- Performance Testing: ${{ needs.performance-testing.result }}" >> quality-gate-report.md
+        echo "- Bundle Analysis: ${{ needs.bundle-analysis.result }}" >> quality-gate-report.md
+        echo "- Security Scan: ${{ needs.security-scan.result }}" >> quality-gate-report.md
+        echo "" >> quality-gate-report.md
+        
+        # Calculate overall quality score
+        total_jobs=4
+        passed_jobs=0
+        
+        if [ "${{ needs.code-metrics.result }}" = "success" ]; then passed_jobs=$((passed_jobs + 1)); fi
+        if [ "${{ needs.performance-testing.result }}" = "success" ]; then passed_jobs=$((passed_jobs + 1)); fi
+        if [ "${{ needs.bundle-analysis.result }}" = "success" ]; then passed_jobs=$((passed_jobs + 1)); fi
+        if [ "${{ needs.security-scan.result }}" = "success" ]; then passed_jobs=$((passed_jobs + 1)); fi
+        
+        quality_score=$((passed_jobs * 100 / total_jobs))
+        
+        echo "## Overall Quality Score: ${quality_score}%" >> quality-gate-report.md
+        echo "" >> quality-gate-report.md
+        
+        if [ $quality_score -ge 80 ]; then
+          echo "✅ **QUALITY GATE PASSED** - Code meets quality standards" >> quality-gate-report.md
+          exit 0
+        elif [ $quality_score -ge 60 ]; then
+          echo "⚠️ **QUALITY GATE WARNING** - Code has some quality issues" >> quality-gate-report.md
+          exit 1
+        else
+          echo "❌ **QUALITY GATE FAILED** - Code does not meet quality standards" >> quality-gate-report.md
+          exit 1
+        fi
+    
+    - name: Upload quality gate report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: quality-gate-report
+        path: quality-gate-report.md
+    
+    - name: Comment PR with quality results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('quality-gate-report.md', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: report
+          });

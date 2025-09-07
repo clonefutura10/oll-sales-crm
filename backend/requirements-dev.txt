@@ -1,0 +1,34 @@
+# Development dependencies for OLL CRM Backend
+# Code formatting and linting
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+autopep8==2.0.4
+
+# Code analysis and quality
+pylint==3.0.3
+pylint-django==2.5.5
+bandit==1.7.6
+mypy==1.8.0
+
+# Security and dependency checking
+safety>=2.3.5
+pip-audit==2.6.1
+
+# Testing
+pytest==7.4.4
+pytest-django==4.8.0
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+coverage==7.4.0
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# Pre-commit hooks
+pre-commit==3.6.0
+
+# Type stubs
+django-stubs==4.2.7
+types-requests==2.31.0.20240106

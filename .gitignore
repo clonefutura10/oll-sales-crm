@@ -19,6 +19,8 @@ Thumbs.db
 
 # Log files
 *.log
+backend/logs/*.log
+!backend/logs/.gitkeep
 
 
 # Backend - Python/Django (`backend/`)
