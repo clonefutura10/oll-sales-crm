@@ -22,6 +22,6 @@ from api.views import api_info, health_check
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check, name="health_check"),
-    path("", api_info, name="api_info"),
     path("api/", include("api.urls")),
+    path("", api_info, name="api_info"),
 ]
