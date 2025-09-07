@@ -1,8 +1,17 @@
 'use client';
 
-import React, { createContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import React, {
+  createContext,
+  useState,
+  useCallback,
+  ReactNode,
+  useEffect,
+} from 'react';
 import { User } from '@/lib/constants/auth';
-import { login as loginService, signup as signupService } from '../services/authService';
+import {
+  login as loginService,
+  signup as signupService,
+} from '../services/authService';
 import { sessionManager } from '../services/sessionManager';
 
 interface AuthContextType {
@@ -70,11 +79,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const userData = await loginService(email, password);
       setUser(userData);
-      
+
       // Create session with timeout
       sessionManager.createSession(userData);
     } catch (err) {
@@ -85,28 +94,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const signup = useCallback(async (name: string, email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const userData = await signupService(name, email, password);
-      setUser(userData);
-      
-      // Create session with timeout
-      sessionManager.createSession(userData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const signup = useCallback(
+    async (name: string, email: string, password: string) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const userData = await signupService(name, email, password);
+        setUser(userData);
+
+        // Create session with timeout
+        sessionManager.createSession(userData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Signup failed');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   const logout = useCallback(() => {
     setUser(null);
     setError(null);
-    
+
     // Clear session
     sessionManager.clearSession();
   }, []);

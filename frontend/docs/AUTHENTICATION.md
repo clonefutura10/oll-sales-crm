@@ -2,9 +2,12 @@
 
 ## Overview
 
-The authentication system provides a complete, production-ready solution for user authentication in Next.js applications. Built with React Context API and TypeScript, it offers login and signup functionality with comprehensive validation, responsive design, and session-based state management.
+The authentication system provides a complete, production-ready solution for user authentication in
+Next.js applications. Built with React Context API and TypeScript, it offers login and signup
+functionality with comprehensive validation, responsive design, and session-based state management.
 
 ### Key Features
+
 - **Type-Safe**: Full TypeScript implementation with compile-time error checking
 - **Responsive**: Mobile-first design with consistent experience across devices
 - **Accessible**: ARIA attributes, keyboard navigation, and screen reader support
@@ -55,6 +58,7 @@ graph TD
 The authentication state is managed through React Context API with professional session management:
 
 ### AuthContext Interface
+
 ```typescript
 interface AuthContextType {
   user: User | null;
@@ -68,6 +72,7 @@ interface AuthContextType {
 ```
 
 ### User Type
+
 ```typescript
 type User = {
   id: string;
@@ -77,6 +82,7 @@ type User = {
 ```
 
 ### State Access Patterns
+
 ```typescript
 // Full context access
 const { user, isAuthenticated, login, logout } = useAuth();
@@ -93,6 +99,7 @@ const { user, isAuthenticated, isLoading, error } = useAuthState();
 The authentication system includes professional session management with automatic timeout handling:
 
 ### Session Manager Service
+
 ```typescript
 // Create session for authenticated user
 createSession(user: User): void
@@ -114,6 +121,7 @@ getTimeRemaining(): number
 ```
 
 ### Session Features
+
 - **Automatic Timeout**: Sessions expire after 30 minutes of inactivity
 - **Activity Tracking**: User activity extends session automatically
 - **Auto Logout**: Automatic logout when session expires
@@ -122,6 +130,7 @@ getTimeRemaining(): number
 - **Error Handling**: Comprehensive error handling for session operations
 
 ### Session Timeout Handling
+
 - **30-Minute Timeout**: Sessions automatically expire after 30 minutes
 - **Activity Extension**: Any user activity resets the timeout counter
 - **Auto Logout**: Users are automatically logged out when session expires
@@ -130,6 +139,7 @@ getTimeRemaining(): number
 ## Component Usage
 
 ### AuthCard Component
+
 Wrapper component providing consistent card layout for authentication forms.
 
 ```tsx
@@ -141,7 +151,7 @@ import { AuthCard } from "@/app/auth/components/AuthCard"
 </AuthCard>
 
 // With title and description
-<AuthCard 
+<AuthCard
   title="Welcome Back"
   description="Sign in to your account to continue"
 >
@@ -150,40 +160,44 @@ import { AuthCard } from "@/app/auth/components/AuthCard"
 ```
 
 **Props:**
+
 - `children` (required): React.ReactNode
 - `title` (optional): string
 - `description` (optional): string
 - `className` (optional): string
 
 ### AuthForm Component
+
 Complete authentication form with built-in validation and state management.
 
 ```tsx
 import { AuthForm } from "@/app/auth/components/AuthForm"
 
 // Login form
-<AuthForm 
-  type="login" 
+<AuthForm
+  type="login"
   onSubmit={async (email, password) => {
     await signIn(email, password)
-  }} 
+  }}
 />
 
 // Signup form
-<AuthForm 
-  type="signup" 
+<AuthForm
+  type="signup"
   onSubmit={async (email, password, name) => {
     await createAccount(name, email, password)
-  }} 
+  }}
 />
 ```
 
 **Props:**
+
 - `type` (required): 'login' | 'signup'
 - `onSubmit` (required): (email: string, password: string, name?: string) => void
 - `className` (optional): string
 
 **Validation Rules:**
+
 - **Email**: Required, valid format (user@domain.com)
 - **Password**: Required, minimum 6 characters
 - **Name**: Required for signup, minimum 2 characters
@@ -192,74 +206,72 @@ import { AuthForm } from "@/app/auth/components/AuthForm"
 ## Usage Examples
 
 ### Basic Authentication Check
+
 ```typescript
 import { useAuth } from '@/app/auth/hooks/useAuth';
 
 function MyComponent() {
   const { isAuthenticated, user } = useAuth();
-  
+
   if (!isAuthenticated) {
     return <div>Please log in</div>;
   }
-  
+
   return <div>Welcome, {user.name}!</div>;
 }
 ```
 
 ### Protected Route Pattern
+
 ```typescript
 import { useAuth } from '@/app/auth/hooks/useAuth';
 import { redirect } from 'next/navigation';
 
 function ProtectedPage() {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     redirect('/login');
   }
-  
+
   return <div>Protected content</div>;
 }
 ```
 
 ### Complete Authentication Page
+
 ```tsx
-import { AuthCard } from "@/app/auth/components/AuthCard"
-import { AuthForm } from "@/app/auth/components/AuthForm"
+import { AuthCard } from '@/app/auth/components/AuthCard';
+import { AuthForm } from '@/app/auth/components/AuthForm';
 
 export default function LoginPage() {
   const handleLogin = async (email: string, password: string) => {
     try {
-      await authenticateUser(email, password)
-      router.push("/dashboard")
+      await authenticateUser(email, password);
+      router.push('/dashboard');
     } catch (error) {
-      console.error("Login failed:", error)
+      console.error('Login failed:', error);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <AuthCard 
-        title="Welcome Back"
-        description="Sign in to your account to continue"
-      >
-        <AuthForm 
-          type="login" 
-          onSubmit={handleLogin}
-        />
+    <div className='min-h-screen flex items-center justify-center bg-background'>
+      <AuthCard title='Welcome Back' description='Sign in to your account to continue'>
+        <AuthForm type='login' onSubmit={handleLogin} />
       </AuthCard>
     </div>
-  )
+  );
 }
 ```
 
 ## Integration
 
-The AuthProvider is integrated into the root layout to ensure authentication state is available throughout the application:
+The AuthProvider is integrated into the root layout to ensure authentication state is available
+throughout the application:
 
 ```typescript
 // app/layout.tsx
@@ -279,6 +291,7 @@ export default function RootLayout({ children }) {
 The system includes comprehensive error handling:
 
 ### Validation Errors
+
 - Real-time form validation with inline error messages
 - Email format validation
 - Password strength requirements
@@ -286,6 +299,7 @@ The system includes comprehensive error handling:
 - Password confirmation matching
 
 ### Authentication Errors
+
 - Invalid credentials
 - User not found
 - User already exists (signup)
@@ -293,12 +307,14 @@ The system includes comprehensive error handling:
 - Session timeout errors
 
 ### Session Errors
+
 - Session expiration handling
 - Automatic logout on timeout
 - Clear error messages for expired sessions
 - Graceful session cleanup
 
 ### User Feedback
+
 - Loading states during submission
 - Error alerts displayed above forms
 - Success notifications (alerts for demo, replace with toast in production)
@@ -307,6 +323,7 @@ The system includes comprehensive error handling:
 ## Security Considerations
 
 ### Current Implementation
+
 - **Session-Based**: No localStorage dependencies for better security
 - **Automatic Timeout**: Sessions expire after 30 minutes of inactivity
 - **Activity Tracking**: User activity extends session automatically
@@ -314,12 +331,14 @@ The system includes comprehensive error handling:
 - **Type Safety**: Full TypeScript implementation prevents runtime errors
 
 ### Session Security
+
 - **Memory-Based Storage**: No persistent storage of sensitive data
 - **Automatic Cleanup**: Sessions are properly cleaned up on timeout or logout
 - **Activity Monitoring**: User activity automatically extends valid sessions
 - **Professional Error Handling**: Secure error handling without exposing sensitive information
 
 ### Production Recommendations
+
 - Implement password hashing (bcrypt, Argon2)
 - Add server-side validation
 - Implement rate limiting for login attempts
@@ -335,6 +354,7 @@ The system includes comprehensive error handling:
 ## Future Enhancements
 
 ### Authentication Features
+
 - Social login providers (Google, GitHub, Facebook)
 - Multi-factor authentication (MFA)
 - Remember me functionality with secure tokens
@@ -343,6 +363,7 @@ The system includes comprehensive error handling:
 - Advanced session management with refresh tokens
 
 ### UI/UX Improvements
+
 - Loading spinners instead of text
 - Toast notifications for success/error messages
 - Password strength indicator
@@ -352,6 +373,7 @@ The system includes comprehensive error handling:
 - Session timeout warnings with countdown
 
 ### Technical Enhancements
+
 - Backend API integration
 - Database integration for user storage
 - Email service integration
@@ -360,6 +382,7 @@ The system includes comprehensive error handling:
 - Comprehensive test suite (unit, integration, e2e)
 
 ### Accessibility
+
 - Enhanced screen reader support
 - High contrast mode support
 - Keyboard-only navigation optimization
@@ -367,7 +390,8 @@ The system includes comprehensive error handling:
 
 ## Best Practices
 
-1. **Always use hooks**: Use `useAuth()` or its convenience variants instead of accessing context directly
+1. **Always use hooks**: Use `useAuth()` or its convenience variants instead of accessing context
+   directly
 2. **Handle loading states**: Always check `isLoading` before rendering content
 3. **Error handling**: Display error messages to users appropriately
 4. **Type safety**: Leverage TypeScript for compile-time error checking
@@ -381,7 +405,9 @@ The system includes comprehensive error handling:
 ## Migration Guide
 
 ### From LocalStorage-Based Authentication
+
 This session-based implementation replaces the previous localStorage-dependent system with:
+
 - **Removed localStorage dependencies**: No more browser storage requirements
 - **Professional session management**: Automatic timeout and cleanup
 - **Enhanced security**: Memory-based sessions with proper cleanup
@@ -389,6 +415,7 @@ This session-based implementation replaces the previous localStorage-dependent s
 - **Cleaner architecture**: Simplified state management without storage complexity
 
 ### Migration Steps
+
 1. Remove all localStorage-related code from your authentication system
 2. Implement session-based state management using the provided SessionManager
 3. Update all authentication components to use the new session-based hooks
@@ -396,4 +423,5 @@ This session-based implementation replaces the previous localStorage-dependent s
 5. Update documentation to reflect the new session-based approach
 6. Test the complete authentication flow with session timeouts
 
-All information from previous documentation has been consolidated and enhanced with additional examples, diagrams, and best practices for the new session-based system.
+All information from previous documentation has been consolidated and enhanced with additional
+examples, diagrams, and best practices for the new session-based system.

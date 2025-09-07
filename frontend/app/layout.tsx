@@ -17,7 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'OLL Sales CRM - Intelligent Sales Management Platform',
-  description: 'Transform your sales process with our intelligent CRM platform. Built for sales teams, managers, and IT admins.',
+  description:
+    'Transform your sales process with our intelligent CRM platform. Built for sales teams, managers, and IT admins.',
 };
 
 export default function RootLayout({
@@ -31,16 +32,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
+          attribute='class'
+          defaultTheme='system'
           enableSystem
           disableTransitionOnChange
         >
           <AuthProvider>
             <Header />
-            <main className="min-h-screen">
-              {children}
-            </main>
+            <main className='min-h-screen'>{children}</main>
           </AuthProvider>
         </ThemeProvider>
       </body>
