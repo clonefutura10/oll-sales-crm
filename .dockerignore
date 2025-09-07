@@ -1,0 +1,49 @@
+# --- Docker Ignore File ---
+# Specifies files and folders to exclude from the Docker build context.
+# This keeps images small and build times fast.
+
+# General
+# ----------------------------------------------------------------
+# Version control and documentation
+.git/
+.gitignore
+.dockerignore
+README.md
+
+# CI/CD and configuration
+.github/
+jenkins/
+docker-compose.yml
+
+# IDE configuration files
+.idea/
+.vscode/
+
+# Local environment variables
+.env
+.env*
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+
+# Backend - Python/Django (`backend/`)
+# ----------------------------------------------------------------
+# Virtual environment folder
+backend/venv/
+backend/.venv/
+
+# Python cache files
+backend/__pycache__/
+backend/**/*.pyc
+
+
+# Frontend - Node.js/Next.js (`frontend/`)
+# ----------------------------------------------------------------
+# Node modules (these are installed INSIDE the container during the build)
+frontend/node_modules/
+
+# Next.js build output (this is generated INSIDE the container)
+frontend/.next/

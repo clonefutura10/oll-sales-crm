@@ -1,0 +1,64 @@
+# --- Git Ignore File ---
+# Specifies intentionally untracked files to ignore.
+
+# General
+# ----------------------------------------------------------------
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE configuration files
+.idea/
+.vscode/
+
+# Local environment variables - NEVER commit secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Log files
+*.log
+
+
+# Backend - Python/Django (`backend/`)
+# ----------------------------------------------------------------
+# Virtual environment folder
+backend/venv/
+backend/.venv/
+
+# Python cache files
+backend/__pycache__/
+backend/**/*.pyc
+
+# Django local database (if using sqlite for quick tests)
+backend/db.sqlite3
+
+# Collected static files (these are generated during deployment)
+# backend/staticfiles/
+
+
+# Frontend - Node.js/Next.js (`frontend/`)
+# ----------------------------------------------------------------
+# Node modules - this folder can be huge and is installed via package.json
+frontend/node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Dependency lock files (uncomment the one you are NOT using if you want to enforce one)
+# frontend/package-lock.json
+# frontend/yarn.lock
+# frontend/pnpm-lock.yaml
+
+# Debug logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+
+# CI/CD
+# ----------------------------------------------------------------
+# Jenkins workspace directory
+jenkins/workspace/
