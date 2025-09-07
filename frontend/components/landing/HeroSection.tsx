@@ -4,7 +4,7 @@ import { ArrowRight, TrendingUp, Users, Zap } from 'lucide-react';
 export default function HeroSection() {
   return (
     <section className='relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900'>
-      <div className='container mx-auto px-4 py-20 sm:px-6 sm:py-32 lg:px-8'>
+      <div className='container mx-auto px-4 py-20 sm:px-6 sm:py-24 lg:px-8'>
         <div className='grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-8 items-center'>
           <div className='text-center lg:text-left'>
             <div className='mb-6 inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-4 py-2 text-sm font-medium text-blue-800 dark:text-blue-200'>
