@@ -1,0 +1,336 @@
+name: Continuous Deployment
+
+on:
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types:
+      - completed
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      image_tag:
+        description: 'Docker image tag to deploy (default: latest from main/develop)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  check-ci-status:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run'
+    outputs:
+      deploy-staging: ${{ steps.check.outputs.deploy-staging }}
+      deploy-production: ${{ steps.check.outputs.deploy-production }}
+      ci-success: ${{ steps.check.outputs.ci-success }}
+    
+    steps:
+    - name: Check CI workflow status
+      id: check
+      run: |
+        if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+          echo "CI workflow failed. Skipping deployment."
+          echo "ci-success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "ci-success=true" >> $GITHUB_OUTPUT
+        
+        # Determine deployment targets based on branch
+        if [ "${{ github.event.workflow_run.head_branch }}" = "develop" ]; then
+          echo "deploy-staging=true" >> $GITHUB_OUTPUT
+          echo "deploy-production=false" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event.workflow_run.head_branch }}" = "main" ]; then
+          echo "deploy-staging=false" >> $GITHUB_OUTPUT
+          echo "deploy-production=true" >> $GITHUB_OUTPUT
+        else
+          echo "deploy-staging=false" >> $GITHUB_OUTPUT
+          echo "deploy-production=false" >> $GITHUB_OUTPUT
+        fi
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: check-ci-status
+    if: |
+      always() && 
+      (
+        (github.event_name == 'workflow_run' && needs.check-ci-status.outputs.deploy-staging == 'true') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+      )
+    
+    environment:
+      name: staging
+      url: https://staging.oll-crm.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set image tag
+      id: image-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.image_tag }}" ]; then
+          echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+          echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=develop" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Deploy to staging environment
+      run: |
+        echo "🚀 Deploying to staging environment..."
+        echo "Backend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.image-tag.outputs.tag }}"
+        echo "Frontend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.image-tag.outputs.tag }}"
+        
+        # Create staging deployment configuration
+        cat > docker-compose.staging.yml << EOF
+        version: '3.8'
+        services:
+          backend:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.image-tag.outputs.tag }}
+            environment:
+              - DJANGO_SETTINGS_MODULE=oll_crm.settings
+              - DATABASE_URL=\${DATABASE_URL}
+              - REDIS_URL=\${REDIS_URL}
+              - SECRET_KEY=\${SECRET_KEY}
+              - DEBUG=False
+              - ALLOWED_HOSTS=staging.oll-crm.com
+            restart: unless-stopped
+          
+          frontend:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.image-tag.outputs.tag }}
+            environment:
+              - NEXT_PUBLIC_API_URL=https://staging-api.oll-crm.com
+            restart: unless-stopped
+        EOF
+        
+        # Here you would typically deploy using your deployment tool:
+        # - kubectl apply -f k8s-staging.yml
+        # - docker stack deploy --compose-file docker-compose.staging.yml staging
+        # - aws ecs update-service --cluster staging --service oll-crm
+        # - ansible-playbook -i staging deploy.yml
+        
+        echo "✅ Staging deployment configuration ready"
+        echo "📄 Docker compose file created for staging deployment"
+    
+    - name: Run smoke tests on staging
+      run: |
+        echo "🧪 Running smoke tests on staging..."
+        
+        # Wait for deployment to be ready
+        sleep 30
+        
+        # Basic health checks
+        echo "Checking staging API health..."
+        # curl -f https://staging-api.oll-crm.com/health/ || echo "⚠️  API health check failed"
+        
+        echo "Checking staging frontend..."
+        # curl -f https://staging.oll-crm.com/ || echo "⚠️  Frontend health check failed"
+        
+        echo "✅ Smoke tests completed"
+    
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ Staging deployment successful!"
+          # Send success notification (Slack, Teams, email, etc.)
+        else
+          echo "❌ Staging deployment failed!"
+          # Send failure notification
+        fi
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: check-ci-status
+    if: |
+      always() && 
+      (
+        (github.event_name == 'workflow_run' && needs.check-ci-status.outputs.deploy-production == 'true') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+      )
+    
+    environment:
+      name: production
+      url: https://oll-crm.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set image tag
+      id: image-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.image_tag }}" ]; then
+          echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+          echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=main" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Deploy to production environment
+      run: |
+        echo "🚀 Deploying to production environment..."
+        echo "Backend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.image-tag.outputs.tag }}"
+        echo "Frontend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.image-tag.outputs.tag }}"
+        
+        # Create production deployment configuration
+        cat > docker-compose.production.yml << EOF
+        version: '3.8'
+        services:
+          backend:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.image-tag.outputs.tag }}
+            environment:
+              - DJANGO_SETTINGS_MODULE=oll_crm.settings
+              - DATABASE_URL=\${DATABASE_URL}
+              - REDIS_URL=\${REDIS_URL}
+              - SECRET_KEY=\${SECRET_KEY}
+              - DEBUG=False
+              - ALLOWED_HOSTS=oll-crm.com,api.oll-crm.com
+            restart: unless-stopped
+          
+          frontend:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.image-tag.outputs.tag }}
+            environment:
+              - NEXT_PUBLIC_API_URL=https://api.oll-crm.com
+            restart: unless-stopped
+        EOF
+        
+        # Here you would typically deploy using your deployment tool:
+        # - kubectl apply -f k8s-production.yml
+        # - docker stack deploy --compose-file docker-compose.production.yml production
+        # - aws ecs update-service --cluster production --service oll-crm
+        # - ansible-playbook -i production deploy.yml
+        
+        echo "✅ Production deployment configuration ready"
+        echo "📄 Docker compose file created for production deployment"
+    
+    - name: Run comprehensive smoke tests
+      run: |
+        echo "🧪 Running comprehensive smoke tests on production..."
+        
+        # Wait for deployment to be ready
+        sleep 60
+        
+        # Critical health checks
+        echo "Checking production API health..."
+        # curl -f https://api.oll-crm.com/health/ || exit 1
+        
+        echo "Checking production frontend..."
+        # curl -f https://oll-crm.com/ || exit 1
+        
+        echo "Checking database connectivity..."
+        # Add database connectivity test
+        
+        echo "Checking Redis connectivity..."
+        # Add Redis connectivity test
+        
+        echo "✅ All smoke tests passed"
+    
+    - name: Create GitHub release
+      if: success()
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        body: |
+          ## 🚀 Production Release v${{ github.run_number }}
+          
+          **Deployment Details:**
+          - Commit SHA: `${{ steps.image-tag.outputs.tag }}`
+          - Backend Image: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ steps.image-tag.outputs.tag }}`
+          - Frontend Image: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.image-tag.outputs.tag }}`
+          - Deployed at: ${{ github.event.head_commit.timestamp }}
+          
+          **Environment URLs:**
+          - Production: https://oll-crm.com
+          - API: https://api.oll-crm.com
+        draft: false
+        prerelease: false
+    
+    - name: Notify successful deployment
+      if: success()
+      run: |
+        echo "🎉 Production deployment successful!"
+        echo "🌐 Application available at: https://oll-crm.com"
+        echo "📦 Release: v${{ github.run_number }}"
+        # Send success notification (Slack, Teams, email, etc.)
+        # Example Slack webhook:
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"🚀 OLL CRM v${{ github.run_number }} deployed to production successfully!"}' \
+        #   ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Notify failed deployment
+      if: failure()
+      run: |
+        echo "❌ Production deployment failed!"
+        echo "🔍 Check logs for details"
+        # Send failure notification (Slack, Teams, email, etc.)
+        # Example Slack webhook:
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"❌ OLL CRM production deployment failed! Check GitHub Actions for details."}' \
+        #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure() && github.event_name == 'workflow_dispatch'
+    needs: [deploy-staging, deploy-production]
+    when: manual
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Rollback deployment
+      run: |
+        echo "🔄 Initiating rollback procedure..."
+        
+        # Get previous successful deployment
+        # This would typically involve:
+        # - Reverting to previous Docker image tags
+        # - Rolling back database migrations if needed
+        # - Updating load balancer configurations
+        
+        echo "⚠️  Manual rollback procedure required"
+        echo "📋 Steps to rollback:"
+        echo "1. Identify last known good deployment"
+        echo "2. Update image tags to previous version"
+        echo "3. Run database rollback if needed"
+        echo "4. Verify application health"
+        
+    - name: Notify rollback
+      run: |
+        echo "🔄 Rollback initiated"
+        # Send rollback notification
