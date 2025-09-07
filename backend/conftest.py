@@ -9,7 +9,7 @@ from django.test.utils import get_runner
 
 def pytest_configure():
     """Configure Django settings for pytest."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'oll_crm.settings')
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oll_crm.settings")
     django.setup()
 
 
