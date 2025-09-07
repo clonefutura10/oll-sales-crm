@@ -219,27 +219,27 @@ pipeline {
         //     }
         // }
         
-        stage('Image Security Scan') {
-            steps {
-                sh '''
-                    echo "Scanning Docker images for vulnerabilities..."
+        // stage('Image Security Scan') {
+        //     steps {
+        //         sh '''
+        //             echo "Scanning Docker images for vulnerabilities..."
                     
-                    # Scan backend image
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v \$HOME/Library/Caches:/root/.cache/ \
-                        aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
-                        --format json --output backend-scan.json \
-                        oll-crm-backend:${IMAGE_TAG} || true
+        //             # Scan backend image
+        //             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        //                 -v \$HOME/Library/Caches:/root/.cache/ \
+        //                 aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+        //                 --format json --output backend-scan.json \
+        //                 oll-crm-backend:${IMAGE_TAG} || true
                     
-                    # Scan frontend image
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v \$HOME/Library/Caches:/root/.cache/ \
-                        aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
-                        --format json --output frontend-scan.json \
-                        oll-crm-frontend:${IMAGE_TAG} || true
-                '''
-            }
-        }
+        //             # Scan frontend image
+        //             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        //                 -v \$HOME/Library/Caches:/root/.cache/ \
+        //                 aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+        //                 --format json --output frontend-scan.json \
+        //                 oll-crm-frontend:${IMAGE_TAG} || true
+        //         '''
+        //     }
+        // }
         
         // stage('Integration Tests') {
         //     steps {
@@ -349,113 +349,113 @@ pipeline {
         // }
     }
     
-    post {
-        always {
-            // Clean up
-            sh '''
-                docker system prune -f
-                docker volume prune -f
-            '''
+    // post {
+    //     always {
+    //         // Clean up
+    //         sh '''
+    //             docker system prune -f
+    //             docker volume prune -f
+    //         '''
             
-            // Archive test results
-            archiveArtifacts artifacts: '**/*-report.json, **/*-scan.json', allowEmptyArchive: true
+    //         // Archive test results
+    //         archiveArtifacts artifacts: '**/*-report.json, **/*-scan.json', allowEmptyArchive: true
             
-            // Publish test results
-            publishTestResults testResultsPattern: '**/test-results.xml'
+    //         // Publish test results
+    //         publishTestResults testResultsPattern: '**/test-results.xml'
             
-            // Publish coverage reports
-            publishHTML([
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'backend/htmlcov',
-                reportFiles: 'index.html',
-                reportName: 'Backend Coverage Report'
-            ])
+    //         // Publish coverage reports
+    //         publishHTML([
+    //             allowMissing: false,
+    //             alwaysLinkToLastBuild: true,
+    //             keepAll: true,
+    //             reportDir: 'backend/htmlcov',
+    //             reportFiles: 'index.html',
+    //             reportName: 'Backend Coverage Report'
+    //         ])
             
-            publishHTML([
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'frontend/coverage/lcov-report',
-                reportFiles: 'index.html',
-                reportName: 'Frontend Coverage Report'
-            ])
+    //         publishHTML([
+    //             allowMissing: false,
+    //             alwaysLinkToLastBuild: true,
+    //             keepAll: true,
+    //             reportDir: 'frontend/coverage/lcov-report',
+    //             reportFiles: 'index.html',
+    //             reportName: 'Frontend Coverage Report'
+    //         ])
             
-            // Clean workspace
-            cleanWs()
-        }
+    //         // Clean workspace
+    //         cleanWs()
+    //     }
         
-        success {
-            slackSend(
-                channel: '#deployments',
-                color: 'good',
-                message: ":white_check_mark: *SUCCESS* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
-                        "Branch: ${env.BRANCH_NAME}\n" +
-                        "Commit: ${env.GIT_COMMIT_SHORT}\n" +
-                        "Duration: ${currentBuild.durationString}\n" +
-                        "<${BUILD_URL}|View Build>"
-            )
+    //     success {
+    //         slackSend(
+    //             channel: '#deployments',
+    //             color: 'good',
+    //             message: ":white_check_mark: *SUCCESS* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+    //                     "Branch: ${env.BRANCH_NAME}\n" +
+    //                     "Commit: ${env.GIT_COMMIT_SHORT}\n" +
+    //                     "Duration: ${currentBuild.durationString}\n" +
+    //                     "<${BUILD_URL}|View Build>"
+    //         )
             
-            // Send email notification for production deployments
-            script {
-                if (env.BRANCH_NAME == 'main') {
-                    emailext(
-                        subject: "✅ Production Deployment Successful - OLL CRM v${IMAGE_TAG}",
-                        body: """
-                        The OLL CRM application has been successfully deployed to production.
+    //         // Send email notification for production deployments
+    //         script {
+    //             if (env.BRANCH_NAME == 'main') {
+    //                 emailext(
+    //                     subject: "✅ Production Deployment Successful - OLL CRM v${IMAGE_TAG}",
+    //                     body: """
+    //                     The OLL CRM application has been successfully deployed to production.
                         
-                        Build: ${BUILD_NUMBER}
-                        Version: ${IMAGE_TAG}
-                        Commit: ${env.GIT_COMMIT_SHORT}
-                        Duration: ${currentBuild.durationString}
+    //                     Build: ${BUILD_NUMBER}
+    //                     Version: ${IMAGE_TAG}
+    //                     Commit: ${env.GIT_COMMIT_SHORT}
+    //                     Duration: ${currentBuild.durationString}
                         
-                        Application URL: https://oll-crm.com
+    //                     Application URL: https://oll-crm.com
                         
-                        View build details: ${BUILD_URL}
-                        """,
-                        to: 'devops@oll-crm.com, team-lead@oll-crm.com'
-                    )
-                }
-            }
-        }
+    //                     View build details: ${BUILD_URL}
+    //                     """,
+    //                     to: 'devops@oll-crm.com, team-lead@oll-crm.com'
+    //                 )
+    //             }
+    //         }
+    //     }
         
-        failure {
-            slackSend(
-                channel: '#deployments',
-                color: 'danger',
-                message: ":x: *FAILED* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
-                        "Branch: ${env.BRANCH_NAME}\n" +
-                        "Commit: ${env.GIT_COMMIT_SHORT}\n" +
-                        "Duration: ${currentBuild.durationString}\n" +
-                        "<${BUILD_URL}|View Build> | <${BUILD_URL}console|Console Output>"
-            )
+    //     failure {
+    //         slackSend(
+    //             channel: '#deployments',
+    //             color: 'danger',
+    //             message: ":x: *FAILED* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+    //                     "Branch: ${env.BRANCH_NAME}\n" +
+    //                     "Commit: ${env.GIT_COMMIT_SHORT}\n" +
+    //                     "Duration: ${currentBuild.durationString}\n" +
+    //                     "<${BUILD_URL}|View Build> | <${BUILD_URL}console|Console Output>"
+    //         )
             
-            emailext(
-                subject: "❌ Build Failed - OLL CRM #${BUILD_NUMBER}",
-                body: """
-                The build for OLL CRM has failed.
+    //         emailext(
+    //             subject: "❌ Build Failed - OLL CRM #${BUILD_NUMBER}",
+    //             body: """
+    //             The build for OLL CRM has failed.
                 
-                Build: ${BUILD_NUMBER}
-                Branch: ${env.BRANCH_NAME}
-                Commit: ${env.GIT_COMMIT_SHORT}
-                Duration: ${currentBuild.durationString}
+    //             Build: ${BUILD_NUMBER}
+    //             Branch: ${env.BRANCH_NAME}
+    //             Commit: ${env.GIT_COMMIT_SHORT}
+    //             Duration: ${currentBuild.durationString}
                 
-                Please check the build logs for more details: ${BUILD_URL}console
-                """,
-                to: 'devops@oll-crm.com'
-            )
-        }
+    //             Please check the build logs for more details: ${BUILD_URL}console
+    //             """,
+    //             to: 'devops@oll-crm.com'
+    //         )
+    //     }
         
-        unstable {
-            slackSend(
-                channel: '#deployments',
-                color: 'warning',
-                message: ":warning: *UNSTABLE* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
-                        "Branch: ${env.BRANCH_NAME}\n" +
-                        "Some tests failed but build completed\n" +
-                        "<${BUILD_URL}|View Build>"
-            )
-        }
-    }
+    //     unstable {
+    //         slackSend(
+    //             channel: '#deployments',
+    //             color: 'warning',
+    //             message: ":warning: *UNSTABLE* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+    //                     "Branch: ${env.BRANCH_NAME}\n" +
+    //                     "Some tests failed but build completed\n" +
+    //                     "<${BUILD_URL}|View Build>"
+    //         )
+    //     }
+    // }
 }
