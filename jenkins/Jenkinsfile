@@ -1,0 +1,434 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'your-registry.com'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Environment Setup') {
+            steps {
+                sh '''
+                    echo "Setting up environment..."
+                    cp .env.example .env || echo "No .env.example found"
+                '''
+            }
+        }
+        
+        stage('Install Dependencies') {
+            parallel {
+                stage('Backend Dependencies') {
+                    steps {
+                        dir('backend') {
+                            sh '''
+                                python3 -m venv venv
+                                . venv/bin/activate
+                                pip install --upgrade pip
+                                pip install -r requirements.txt
+                                pip install flake8 pylint black pytest coverage
+                            '''
+                        }
+                    }
+                }
+                stage('Frontend Dependencies') {
+                    steps {
+                        dir('frontend') {
+                            sh '''
+                                npm ci --silent
+                                npm install --save-dev jest @testing-library/react @testing-library/jest-dom
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Code Quality & Linting') {
+            parallel {
+                stage('Backend Linting') {
+                    steps {
+                        dir('backend') {
+                            sh '''
+                                . venv/bin/activate
+                                echo "Running Black formatter..."
+                                black --check . || (echo "Code formatting issues found. Run 'black .' to fix them." && exit 1)
+                                
+                                echo "Running Flake8..."
+                                flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+                                flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+                                
+                                echo "Running Pylint..."
+                                find . -name "*.py" -not -path "./venv/*" | xargs pylint --exit-zero
+                            '''
+                        }
+                    }
+                }
+                stage('Frontend Linting') {
+                    steps {
+                        dir('frontend') {
+                            sh '''
+                                echo "Running ESLint..."
+                                npm run lint
+                                
+                                echo "Running TypeScript check..."
+                                npx tsc --noEmit
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        dir('backend') {
+                            sh '''
+                                . venv/bin/activate
+                                echo "Running Django tests..."
+                                python manage.py test --verbosity=2
+                                
+                                echo "Running pytest with coverage..."
+                                coverage run -m pytest
+                                coverage report
+                                coverage xml
+                            '''
+                        }
+                        publishTestResults testResultsPattern: 'backend/coverage.xml'
+                    }
+                }
+                stage('Frontend Tests') {
+                    steps {
+                        dir('frontend') {
+                            sh '''
+                                echo "Running Jest tests..."
+                                npm test -- --coverage --watchAll=false --passWithNoTests
+                            '''
+                        }
+                        publishTestResults testResultsPattern: 'frontend/coverage/lcov.info'
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scanning') {
+            parallel {
+                stage('Dependency Check') {
+                    steps {
+                        sh '''
+                            echo "Checking for security vulnerabilities..."
+                            
+                            # Backend dependency check
+                            cd backend && pip install safety
+                            . venv/bin/activate && safety check --json > safety-report.json || true
+                            
+                            # Frontend dependency check
+                            cd ../frontend && npm audit --audit-level=high --json > audit-report.json || true
+                        '''
+                    }
+                }
+                stage('Secrets Scan') {
+                    steps {
+                        sh '''
+                            echo "Scanning for secrets..."
+                            # Install and run truffleHog or gitleaks
+                            docker run --rm -v "${PWD}":/pwd trufflesecurity/trufflehog:latest github --repo=file:///pwd --json > secrets-scan.json || true
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Build Docker Images') {
+            parallel {
+                stage('Build Backend Image') {
+                    steps {
+                        script {
+                            def backendImage = docker.build(
+                                "oll-crm-backend:${IMAGE_TAG}",
+                                "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
+                                "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
+                                "./backend"
+                            )
+                            
+                            // Tag for registry
+                            backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}")
+                            backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:latest")
+                        }
+                    }
+                }
+                stage('Build Frontend Image') {
+                    steps {
+                        script {
+                            def frontendImage = docker.build(
+                                "oll-crm-frontend:${IMAGE_TAG}",
+                                "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
+                                "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
+                                "./frontend"
+                            )
+                            
+                            // Tag for registry
+                            frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}")
+                            frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:latest")
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Image Security Scan') {
+            steps {
+                sh '''
+                    echo "Scanning Docker images for vulnerabilities..."
+                    
+                    # Scan backend image
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v \$HOME/Library/Caches:/root/.cache/ \
+                        aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+                        --format json --output backend-scan.json \
+                        oll-crm-backend:${IMAGE_TAG} || true
+                    
+                    # Scan frontend image
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v \$HOME/Library/Caches:/root/.cache/ \
+                        aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+                        --format json --output frontend-scan.json \
+                        oll-crm-frontend:${IMAGE_TAG} || true
+                '''
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh '''
+                    echo "Running integration tests..."
+                    
+                    # Start services with docker-compose
+                    docker-compose -f docker-compose.test.yml up -d
+                    
+                    # Wait for services to be ready
+                    sleep 30
+                    
+                    # Run integration tests
+                    docker-compose -f docker-compose.test.yml exec -T backend python manage.py test tests.integration
+                    
+                    # Run API tests
+                    docker run --rm --network oll-sales-crm_default \
+                        -v \${PWD}/tests:/tests \
+                        postman/newman:latest run /tests/api-tests.json \
+                        --environment /tests/test-environment.json
+                '''
+            }
+            post {
+                always {
+                    sh 'docker-compose -f docker-compose.test.yml down -v'
+                }
+            }
+        }
+        
+        stage('Push to Registry') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-registry-credentials') {
+                        // Push backend image
+                        docker.image("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}").push()
+                        docker.image("${DOCKER_REGISTRY}/oll-crm-backend:latest").push()
+                        
+                        // Push frontend image
+                        docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}").push()
+                        docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:latest").push()
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                sh '''
+                    echo "Deploying to staging environment..."
+                    
+                    # Update staging docker-compose with new image tags
+                    sed -i "s/oll-crm-backend:latest/oll-crm-backend:${IMAGE_TAG}/g" docker-compose.staging.yml
+                    sed -i "s/oll-crm-frontend:latest/oll-crm-frontend:${IMAGE_TAG}/g" docker-compose.staging.yml
+                    
+                    # Deploy to staging
+                    docker stack deploy -c docker-compose.staging.yml oll-crm-staging
+                    
+                    # Wait for deployment to complete
+                    sleep 60
+                    
+                    # Health check
+                    curl -f http://staging.oll-crm.com/health/ || exit 1
+                '''
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input message: 'Deploy to production?', ok: 'Deploy',
+                      parameters: [
+                          choice(name: 'DEPLOYMENT_TYPE', choices: ['blue-green', 'rolling'], description: 'Deployment strategy')
+                      ]
+                
+                sh '''
+                    echo "Deploying to production with ${DEPLOYMENT_TYPE} strategy..."
+                    
+                    if [ "${DEPLOYMENT_TYPE}" = "blue-green" ]; then
+                        # Blue-green deployment
+                        ./scripts/blue-green-deploy.sh ${IMAGE_TAG}
+                    else
+                        # Rolling update
+                        ./scripts/rolling-update.sh ${IMAGE_TAG}
+                    fi
+                    
+                    # Wait for deployment to complete
+                    sleep 120
+                    
+                    # Health check
+                    curl -f https://oll-crm.com/health/ || exit 1
+                    
+                    # Run smoke tests
+                    ./scripts/smoke-tests.sh
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up
+            sh '''
+                docker system prune -f
+                docker volume prune -f
+            '''
+            
+            // Archive test results
+            archiveArtifacts artifacts: '**/*-report.json, **/*-scan.json', allowEmptyArchive: true
+            
+            // Publish test results
+            publishTestResults testResultsPattern: '**/test-results.xml'
+            
+            // Publish coverage reports
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'backend/htmlcov',
+                reportFiles: 'index.html',
+                reportName: 'Backend Coverage Report'
+            ])
+            
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'frontend/coverage/lcov-report',
+                reportFiles: 'index.html',
+                reportName: 'Frontend Coverage Report'
+            ])
+            
+            // Clean workspace
+            cleanWs()
+        }
+        
+        success {
+            slackSend(
+                channel: '#deployments',
+                color: 'good',
+                message: ":white_check_mark: *SUCCESS* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+                        "Branch: ${env.BRANCH_NAME}\n" +
+                        "Commit: ${env.GIT_COMMIT_SHORT}\n" +
+                        "Duration: ${currentBuild.durationString}\n" +
+                        "<${BUILD_URL}|View Build>"
+            )
+            
+            // Send email notification for production deployments
+            script {
+                if (env.BRANCH_NAME == 'main') {
+                    emailext(
+                        subject: "✅ Production Deployment Successful - OLL CRM v${IMAGE_TAG}",
+                        body: """
+                        The OLL CRM application has been successfully deployed to production.
+                        
+                        Build: ${BUILD_NUMBER}
+                        Version: ${IMAGE_TAG}
+                        Commit: ${env.GIT_COMMIT_SHORT}
+                        Duration: ${currentBuild.durationString}
+                        
+                        Application URL: https://oll-crm.com
+                        
+                        View build details: ${BUILD_URL}
+                        """,
+                        to: 'devops@oll-crm.com, team-lead@oll-crm.com'
+                    )
+                }
+            }
+        }
+        
+        failure {
+            slackSend(
+                channel: '#deployments',
+                color: 'danger',
+                message: ":x: *FAILED* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+                        "Branch: ${env.BRANCH_NAME}\n" +
+                        "Commit: ${env.GIT_COMMIT_SHORT}\n" +
+                        "Duration: ${currentBuild.durationString}\n" +
+                        "<${BUILD_URL}|View Build> | <${BUILD_URL}console|Console Output>"
+            )
+            
+            emailext(
+                subject: "❌ Build Failed - OLL CRM #${BUILD_NUMBER}",
+                body: """
+                The build for OLL CRM has failed.
+                
+                Build: ${BUILD_NUMBER}
+                Branch: ${env.BRANCH_NAME}
+                Commit: ${env.GIT_COMMIT_SHORT}
+                Duration: ${currentBuild.durationString}
+                
+                Please check the build logs for more details: ${BUILD_URL}console
+                """,
+                to: 'devops@oll-crm.com'
+            )
+        }
+        
+        unstable {
+            slackSend(
+                channel: '#deployments',
+                color: 'warning',
+                message: ":warning: *UNSTABLE* - ${JOB_NAME} #${BUILD_NUMBER}\n" +
+                        "Branch: ${env.BRANCH_NAME}\n" +
+                        "Some tests failed but build completed\n" +
+                        "<${BUILD_URL}|View Build>"
+            )
+        }
+    }
+}
