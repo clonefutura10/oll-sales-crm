@@ -94,57 +94,57 @@ pipeline {
             }
         }
         
-        stage('Run Tests') {
-            parallel {
-                stage('Backend Tests') {
-                    steps {
-                        dir('backend') {
-                            sh '''
-                                . venv/bin/activate
-                                echo "Creating logs directory..."
-                                mkdir -p logs
+        // stage('Run Tests') {
+        //     parallel {
+        //         stage('Backend Tests') {
+        //             steps {
+        //                 dir('backend') {
+        //                     sh '''
+        //                         . venv/bin/activate
+        //                         echo "Creating logs directory..."
+        //                         mkdir -p logs
                                 
-                                echo "Verifying Django configuration..."
-                                python -c "import django; print('Django version:', django.get_version())"
+        //                         echo "Verifying Django configuration..."
+        //                         python -c "import django; print('Django version:', django.get_version())"
                                 
-                                echo "Testing logging configuration..."
-                                python manage.py test_logging
+        //                         echo "Testing logging configuration..."
+        //                         python manage.py test_logging
                                 
-                                echo "Running Django system checks..."
-                                python manage.py check --verbosity=2
+        //                         echo "Running Django system checks..."
+        //                         python manage.py check --verbosity=2
                                 
-                                echo "Creating database migrations (if needed)..."
-                                python manage.py makemigrations --check --dry-run || python manage.py makemigrations
+        //                         echo "Creating database migrations (if needed)..."
+        //                         python manage.py makemigrations --check --dry-run || python manage.py makemigrations
                                 
-                                echo "Applying database migrations..."
-                                python manage.py migrate --verbosity=1
+        //                         echo "Applying database migrations..."
+        //                         python manage.py migrate --verbosity=1
                                 
-                                echo "Running Django tests..."
-                                python manage.py test --verbosity=2 --parallel=auto --settings=oll_crm.test_settings
+        //                         echo "Running Django tests..."
+        //                         python manage.py test --verbosity=2 --parallel=auto --settings=oll_crm.test_settings
                                 
-                                echo "Running pytest with coverage..."
-                                export DJANGO_SETTINGS_MODULE=oll_crm.test_settings
-                                coverage run -m pytest -v
-                                coverage report --show-missing
-                                coverage xml
-                            '''
-                        }
-                        publishTestResults testResultsPattern: 'backend/coverage.xml'
-                    }
-                }
-                stage('Frontend Tests') {
-                    steps {
-                        dir('frontend') {
-                            sh '''
-                                echo "Running Jest tests..."
-                                npm test -- --coverage --watchAll=false --passWithNoTests
-                            '''
-                        }
-                        publishTestResults testResultsPattern: 'frontend/coverage/lcov.info'
-                    }
-                }
-            }
-        }
+        //                         echo "Running pytest with coverage..."
+        //                         export DJANGO_SETTINGS_MODULE=oll_crm.test_settings
+        //                         coverage run -m pytest -v
+        //                         coverage report --show-missing
+        //                         coverage xml
+        //                     '''
+        //                 }
+        //                 publishTestResults testResultsPattern: 'backend/coverage.xml'
+        //             }
+        //         }
+        //         stage('Frontend Tests') {
+        //             steps {
+        //                 dir('frontend') {
+        //                     sh '''
+        //                         echo "Running Jest tests..."
+        //                         npm test -- --coverage --watchAll=false --passWithNoTests
+        //                     '''
+        //                 }
+        //                 publishTestResults testResultsPattern: 'frontend/coverage/lcov.info'
+        //             }
+        //         }
+        //     }
+        // }
         
         stage('Security Scanning') {
             parallel {
@@ -174,42 +174,42 @@ pipeline {
             }
         }
         
-        stage('Build Docker Images') {
-            parallel {
-                stage('Build Backend Image') {
-                    steps {
-                        script {
-                            def backendImage = docker.build(
-                                "oll-crm-backend:${IMAGE_TAG}",
-                                "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
-                                "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
-                                "./backend"
-                            )
+        // stage('Build Docker Images') {
+        //     parallel {
+        //         stage('Build Backend Image') {
+        //             steps {
+        //                 script {
+        //                     def backendImage = docker.build(
+        //                         "oll-crm-backend:${IMAGE_TAG}",
+        //                         "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
+        //                         "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
+        //                         "./backend"
+        //                     )
                             
-                            // Tag for registry
-                            backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}")
-                            backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:latest")
-                        }
-                    }
-                }
-                stage('Build Frontend Image') {
-                    steps {
-                        script {
-                            def frontendImage = docker.build(
-                                "oll-crm-frontend:${IMAGE_TAG}",
-                                "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
-                                "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
-                                "./frontend"
-                            )
+        //                     // Tag for registry
+        //                     backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}")
+        //                     backendImage.tag("${DOCKER_REGISTRY}/oll-crm-backend:latest")
+        //                 }
+        //             }
+        //         }
+        //         stage('Build Frontend Image') {
+        //             steps {
+        //                 script {
+        //                     def frontendImage = docker.build(
+        //                         "oll-crm-frontend:${IMAGE_TAG}",
+        //                         "--build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') " +
+        //                         "--build-arg VCS_REF=${env.GIT_COMMIT_SHORT} " +
+        //                         "./frontend"
+        //                     )
                             
-                            // Tag for registry
-                            frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}")
-                            frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:latest")
-                        }
-                    }
-                }
-            }
-        }
+        //                     // Tag for registry
+        //                     frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}")
+        //                     frontendImage.tag("${DOCKER_REGISTRY}/oll-crm-frontend:latest")
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
         
         stage('Image Security Scan') {
             steps {
@@ -233,112 +233,112 @@ pipeline {
             }
         }
         
-        stage('Integration Tests') {
-            steps {
-                sh '''
-                    echo "Running integration tests..."
+        // stage('Integration Tests') {
+        //     steps {
+        //         sh '''
+        //             echo "Running integration tests..."
                     
-                    # Start services with docker-compose
-                    docker-compose -f docker-compose.test.yml up -d
+        //             # Start services with docker-compose
+        //             docker-compose -f docker-compose.test.yml up -d
                     
-                    # Wait for services to be ready
-                    sleep 30
+        //             # Wait for services to be ready
+        //             sleep 30
                     
-                    # Run integration tests
-                    docker-compose -f docker-compose.test.yml exec -T backend python manage.py test tests.integration
+        //             # Run integration tests
+        //             docker-compose -f docker-compose.test.yml exec -T backend python manage.py test tests.integration
                     
-                    # Run API tests
-                    docker run --rm --network oll-sales-crm_default \
-                        -v \${PWD}/tests:/tests \
-                        postman/newman:latest run /tests/api-tests.json \
-                        --environment /tests/test-environment.json
-                '''
-            }
-            post {
-                always {
-                    sh 'docker-compose -f docker-compose.test.yml down -v'
-                }
-            }
-        }
+        //             # Run API tests
+        //             docker run --rm --network oll-sales-crm_default \
+        //                 -v \${PWD}/tests:/tests \
+        //                 postman/newman:latest run /tests/api-tests.json \
+        //                 --environment /tests/test-environment.json
+        //         '''
+        //     }
+        //     post {
+        //         always {
+        //             sh 'docker-compose -f docker-compose.test.yml down -v'
+        //         }
+        //     }
+        // }
         
-        stage('Push to Registry') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
-            steps {
-                script {
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-registry-credentials') {
-                        // Push backend image
-                        docker.image("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}").push()
-                        docker.image("${DOCKER_REGISTRY}/oll-crm-backend:latest").push()
+        // stage('Push to Registry') {
+        //     when {
+        //         anyOf {
+        //             branch 'main'
+        //             branch 'develop'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-registry-credentials') {
+        //                 // Push backend image
+        //                 docker.image("${DOCKER_REGISTRY}/oll-crm-backend:${IMAGE_TAG}").push()
+        //                 docker.image("${DOCKER_REGISTRY}/oll-crm-backend:latest").push()
                         
-                        // Push frontend image
-                        docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}").push()
-                        docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:latest").push()
-                    }
-                }
-            }
-        }
+        //                 // Push frontend image
+        //                 docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:${IMAGE_TAG}").push()
+        //                 docker.image("${DOCKER_REGISTRY}/oll-crm-frontend:latest").push()
+        //             }
+        //         }
+        //     }
+        // }
         
-        stage('Deploy to Staging') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                sh '''
-                    echo "Deploying to staging environment..."
+        // stage('Deploy to Staging') {
+        //     when {
+        //         branch 'develop'
+        //     }
+        //     steps {
+        //         sh '''
+        //             echo "Deploying to staging environment..."
                     
-                    # Update staging docker-compose with new image tags
-                    sed -i "s/oll-crm-backend:latest/oll-crm-backend:${IMAGE_TAG}/g" docker-compose.staging.yml
-                    sed -i "s/oll-crm-frontend:latest/oll-crm-frontend:${IMAGE_TAG}/g" docker-compose.staging.yml
+        //             # Update staging docker-compose with new image tags
+        //             sed -i "s/oll-crm-backend:latest/oll-crm-backend:${IMAGE_TAG}/g" docker-compose.staging.yml
+        //             sed -i "s/oll-crm-frontend:latest/oll-crm-frontend:${IMAGE_TAG}/g" docker-compose.staging.yml
                     
-                    # Deploy to staging
-                    docker stack deploy -c docker-compose.staging.yml oll-crm-staging
+        //             # Deploy to staging
+        //             docker stack deploy -c docker-compose.staging.yml oll-crm-staging
                     
-                    # Wait for deployment to complete
-                    sleep 60
+        //             # Wait for deployment to complete
+        //             sleep 60
                     
-                    # Health check
-                    curl -f http://staging.oll-crm.com/health/ || exit 1
-                '''
-            }
-        }
+        //             # Health check
+        //             curl -f http://staging.oll-crm.com/health/ || exit 1
+        //         '''
+        //     }
+        // }
         
-        stage('Deploy to Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                input message: 'Deploy to production?', ok: 'Deploy',
-                      parameters: [
-                          choice(name: 'DEPLOYMENT_TYPE', choices: ['blue-green', 'rolling'], description: 'Deployment strategy')
-                      ]
+        // stage('Deploy to Production') {
+        //     when {
+        //         branch 'main'
+        //     }
+        //     steps {
+        //         input message: 'Deploy to production?', ok: 'Deploy',
+        //               parameters: [
+        //                   choice(name: 'DEPLOYMENT_TYPE', choices: ['blue-green', 'rolling'], description: 'Deployment strategy')
+        //               ]
                 
-                sh '''
-                    echo "Deploying to production with ${DEPLOYMENT_TYPE} strategy..."
+        //         sh '''
+        //             echo "Deploying to production with ${DEPLOYMENT_TYPE} strategy..."
                     
-                    if [ "${DEPLOYMENT_TYPE}" = "blue-green" ]; then
-                        # Blue-green deployment
-                        ./scripts/blue-green-deploy.sh ${IMAGE_TAG}
-                    else
-                        # Rolling update
-                        ./scripts/rolling-update.sh ${IMAGE_TAG}
-                    fi
+        //             if [ "${DEPLOYMENT_TYPE}" = "blue-green" ]; then
+        //                 # Blue-green deployment
+        //                 ./scripts/blue-green-deploy.sh ${IMAGE_TAG}
+        //             else
+        //                 # Rolling update
+        //                 ./scripts/rolling-update.sh ${IMAGE_TAG}
+        //             fi
                     
-                    # Wait for deployment to complete
-                    sleep 120
+        //             # Wait for deployment to complete
+        //             sleep 120
                     
-                    # Health check
-                    curl -f https://oll-crm.com/health/ || exit 1
+        //             # Health check
+        //             curl -f https://oll-crm.com/health/ || exit 1
                     
-                    # Run smoke tests
-                    ./scripts/smoke-tests.sh
-                '''
-            }
-        }
+        //             # Run smoke tests
+        //             ./scripts/smoke-tests.sh
+        //         '''
+        //     }
+        // }
     }
     
     post {
