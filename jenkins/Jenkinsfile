@@ -154,11 +154,15 @@ pipeline {
                             echo "Checking for security vulnerabilities..."
                             
                             # Backend dependency check
-                            cd backend && pip install safety
-                            . venv/bin/activate && safety check --json > safety-report.json || true
+                            cd backend
+                            . venv/bin/activate
+                            echo "Running safety check (safety should already be installed from requirements-dev.txt)..."
+                            safety check --json > safety-report.json || true
                             
                             # Frontend dependency check
-                            cd ../frontend && npm audit --audit-level=high --json > audit-report.json || true
+                            cd ../frontend
+                            echo "Running npm audit..."
+                            npm audit --audit-level=high --json > audit-report.json || true
                         '''
                     }
                 }
