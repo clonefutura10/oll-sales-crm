@@ -66,11 +66,11 @@ pipeline {
                             sh '''
                                 . venv/bin/activate
                                 echo "Running Black formatter..."
-                                black --check . || (echo "Code formatting issues found. Run 'black .' to fix them." && exit 1)
+                                black --check . --exclude venv || (echo "Code formatting issues found. Run 'black .' to fix them." && exit 1)
                                 
                                 echo "Running Flake8..."
-                                flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-                                flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+                                flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv
+                                flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv
                                 
                                 echo "Running Pylint..."
                                 find . -name "*.py" -not -path "./venv/*" | xargs pylint --exit-zero
