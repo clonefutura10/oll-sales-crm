@@ -21,14 +21,28 @@ jobs:
       with:
         python-version: '3.11'
     
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install Node.js dependencies
+      run: |
+        cd frontend
+        npm ci
+    
     - name: Install pre-commit
-      run: pip install pre-commit
+      run: |
+        pip install --upgrade pip
+        pip install pre-commit==3.6.0
     
     - name: Cache pre-commit hooks
       uses: actions/cache@v3
       with:
         path: ~/.cache/pre-commit
-        key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+        key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}-v2
         restore-keys: |
           pre-commit-
     
@@ -36,7 +50,16 @@ jobs:
       run: pre-commit install --install-hooks
     
     - name: Run pre-commit on changed files
-      run: pre-commit run --from-ref origin/main --to-ref HEAD --show-diff-on-failure
+      run: |
+        # Get the list of changed files
+        git fetch origin main:main
+        
+        # Run pre-commit on changed files only
+        if git diff --name-only --diff-filter=ACM origin/main...HEAD | grep -E '\.(py|js|jsx|ts|tsx|json|css|scss|md|yaml|yml)$'; then
+          pre-commit run --from-ref origin/main --to-ref HEAD --show-diff-on-failure
+        else
+          echo "No relevant files changed for pre-commit checks"
+        fi
 
   detect-secrets:
     name: Detect Secrets
