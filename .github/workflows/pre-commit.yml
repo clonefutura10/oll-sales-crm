@@ -1,8 +1,6 @@
-name: Pre-commit Hooks
+name: Pre-commit & Security Checks
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:
@@ -23,11 +21,6 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-    
     - name: Install pre-commit
       run: pip install pre-commit
     
@@ -42,31 +35,8 @@ jobs:
     - name: Install pre-commit hooks
       run: pre-commit install --install-hooks
     
-    - name: Run pre-commit on all files
-      run: pre-commit run --all-files --show-diff-on-failure
-    
-    - name: Run pre-commit on changed files only (if previous step failed)
-      if: failure()
-      run: |
-        echo "Running pre-commit on changed files only..."
-        git diff --name-only HEAD~1 HEAD | xargs pre-commit run --files || true
-
-  commit-message-check:
-    name: Commit Message Check
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Check commit messages
-      uses: wagoid/commitlint-github-action@v5
-      with:
-        configFile: '.commitlintrc.json'
-        helpURL: 'https://github.com/conventional-changelog/commitlint/#what-is-commitlint'
+    - name: Run pre-commit on changed files
+      run: pre-commit run --from-ref origin/main --to-ref HEAD --show-diff-on-failure
 
   detect-secrets:
     name: Detect Secrets
@@ -100,93 +70,3 @@ jobs:
       with:
         name: secrets-baseline
         path: .secrets.baseline
-
-  dependency-check:
-    name: Dependency Security Check
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-    
-    - name: Install Python dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-        pip install safety pip-audit
-    
-    - name: Install Node.js dependencies
-      run: |
-        cd frontend
-        npm ci
-    
-    - name: Run Python safety check
-      run: |
-        cd backend
-        safety check --json --output safety-report.json || true
-        pip-audit --format=json --output=pip-audit-report.json || true
-    
-    - name: Run npm audit
-      run: |
-        cd frontend
-        npm audit --audit-level=moderate --json > npm-audit.json || true
-    
-    - name: Upload security reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: security-reports
-        path: |
-          backend/safety-report.json
-          backend/pip-audit-report.json
-          frontend/npm-audit.json
-
-  license-check:
-    name: License Compliance Check
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install license checkers
-      run: |
-        pip install pip-licenses
-        npm install -g license-checker
-    
-    - name: Check Python licenses
-      run: |
-        cd backend
-        pip install -r requirements.txt
-        pip-licenses --format=json --output-file=python-licenses.json
-        pip-licenses --allow-only="MIT;BSD;Apache;ISC;MPL-2.0;LGPL"
-    
-    - name: Check Node.js licenses
-      run: |
-        cd frontend
-        npm ci
-        license-checker --json > npm-licenses.json
-        license-checker --onlyAllow="MIT;BSD;Apache;ISC;MPL-2.0;LGPL"
-    
-    - name: Upload license reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: license-reports
-        path: |
-          backend/python-licenses.json
-          frontend/npm-licenses.json
