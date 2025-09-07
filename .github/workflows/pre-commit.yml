@@ -96,7 +96,7 @@ jobs:
         detect-secrets audit .secrets.baseline
     
     - name: Upload secrets baseline
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: secrets-baseline
         path: .secrets.baseline
@@ -142,7 +142,7 @@ jobs:
         npm audit --audit-level=moderate --json > npm-audit.json || true
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports
@@ -184,7 +184,7 @@ jobs:
         license-checker --onlyAllow="MIT;BSD;Apache;ISC;MPL-2.0;LGPL"
     
     - name: Upload license reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: license-reports
         path: |
