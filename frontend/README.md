@@ -1,6 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with
 [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Documentation
+
+- [Authentication System](./docs/AUTHENTICATION.md) - Complete guide to the authentication module
+- [Progress Log](./docs/PROGRESS.md) - Development progress and architecture decisions
+
 ## Getting Started
 
 First, run the development server:
