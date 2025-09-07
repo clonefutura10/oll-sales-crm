@@ -254,7 +254,8 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=1
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/oll_crm
+      # Example connection string - replace with your actual database credentials
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/oll_crm  # pragma: allowlist secret
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
@@ -304,7 +305,8 @@ volumes:
 ### Backend Environment Variables (.env)
 
 ```env
-SECRET_KEY=your-secret-key-here
+# Replace with a strong random secret key
+SECRET_KEY=your-secret-key-here  # pragma: allowlist secret
 DEBUG=True
 DATABASE_URL=sqlite:///db.sqlite3
 REDIS_URL=redis://localhost:6379/0
@@ -321,7 +323,8 @@ EMAIL_HOST_PASSWORD=your-app-password
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXTAUTH_SECRET=your-nextauth-secret
+# Replace with a secure random string for NextAuth
+NEXTAUTH_SECRET=your-nextauth-secret  # pragma: allowlist secret
 NEXTAUTH_URL=http://localhost:3000
 ```
 

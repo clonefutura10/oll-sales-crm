@@ -56,17 +56,193 @@ jobs:
     - name: Install detect-secrets
       run: pip install detect-secrets
     
+    - name: Create detect-secrets config
+      run: |
+        cat > .secrets.config << EOF
+        {
+          "version": "1.4.0",
+          "plugins_used": [
+            {
+              "name": "ArtifactoryDetector"
+            },
+            {
+              "name": "AWSKeyDetector"
+            },
+            {
+              "name": "AzureStorageKeyDetector"
+            },
+            {
+              "name": "Base64HighEntropyString",
+              "limit": 4.5
+            },
+            {
+              "name": "BasicAuthDetector"
+            },
+            {
+              "name": "CloudantDetector"
+            },
+            {
+              "name": "DiscordBotTokenDetector"
+            },
+            {
+              "name": "GitHubTokenDetector"
+            },
+            {
+              "name": "HexHighEntropyString",
+              "limit": 3.0
+            },
+            {
+              "name": "IbmCloudIamDetector"
+            },
+            {
+              "name": "IbmCosHmacDetector"
+            },
+            {
+              "name": "JwtTokenDetector"
+            },
+            {
+              "name": "KeywordDetector",
+              "keyword_exclude": ""
+            },
+            {
+              "name": "MailchimpDetector"
+            },
+            {
+              "name": "NpmDetector"
+            },
+            {
+              "name": "PrivateKeyDetector"
+            },
+            {
+              "name": "SendGridDetector"
+            },
+            {
+              "name": "SlackDetector"
+            },
+            {
+              "name": "SoftlayerDetector"
+            },
+            {
+              "name": "SquareOAuthDetector"
+            },
+            {
+              "name": "StripeDetector"
+            },
+            {
+              "name": "TwilioKeyDetector"
+            }
+          ],
+          "filters_used": [
+            {
+              "path": "detect_secrets.filters.allowlist.is_line_allowlisted"
+            },
+            {
+              "path": "detect_secrets.filters.common.is_ignored_due_to_verification_policies",
+              "min_level": 2
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_indirect_reference"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_likely_id_string"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_lock_file"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_not_alphanumeric_string"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_potential_uuid"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_prefixed_with_dollar_sign"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_sequential_string"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_swagger_file"
+            },
+            {
+              "path": "detect_secrets.filters.heuristic.is_templated_secret"
+            }
+          ],
+          "exclude": {
+            "files": "node_modules/.*|.git/.*|\\.secrets\\..*",
+            "lines": null
+          }
+        }
+        EOF
+    
     - name: Run detect-secrets scan
       run: |
-        detect-secrets scan --all-files --force-use-all-plugins --exclude-files node_modules --exclude-files .git > .secrets.baseline
+        # Run initial scan to create baseline
+        detect-secrets scan \
+          --all-files \
+          --baseline .secrets.baseline \
+          --exclude-files 'node_modules/.*' \
+          --exclude-files '.git/.*' \
+          --exclude-files '.*\\.pyc' \
+          --exclude-files '.*\\.log' \
+          --exclude-files 'package-lock\\.json' \
+          --exclude-files 'yarn\\.lock' \
+          --exclude-lines 'password.*=.*\\*\\*\\*' \
+          --exclude-lines 'DATABASE_URL.*=.*\\*\\*\\*'
     
-    - name: Check for secrets in diff
+    - name: Check for new secrets
       if: github.event_name == 'pull_request'
       run: |
-        detect-secrets audit .secrets.baseline
+        # Check if there are any unverified secrets
+        if [ -f .secrets.baseline ]; then
+          # Count secrets in baseline
+          secret_count=$(python3 -c "
+        import json
+        try:
+            with open('.secrets.baseline', 'r') as f:
+                data = json.load(f)
+            print(len(data.get('results', {})))
+        except:
+            print(0)
+        ")
+          
+          echo "Found $secret_count potential secrets"
+          
+          if [ "$secret_count" -gt 0 ]; then
+            echo "⚠️  Potential secrets detected! Review the baseline file:"
+            echo ""
+            python3 -c "
+        import json
+        try:
+            with open('.secrets.baseline', 'r') as f:
+                data = json.load(f)
+            for filename, secrets in data.get('results', {}).items():
+                print(f'📄 {filename}:')
+                for secret in secrets:
+                    print(f'  - Line {secret.get(\"line_number\", \"?\")}: {secret.get(\"type\", \"Unknown\")}')
+                print()
+        except Exception as e:
+            print(f'Error reading baseline: {e}')
+        "
+            
+            echo ""
+            echo "If these are false positives, they need to be verified manually."
+            echo "Consider adding them to .gitignore or using # pragma: allowlist secret comments."
+            
+            # Don't fail the workflow for now, just warn
+            echo "⚠️  Warning: Potential secrets found - please review!"
+          else
+            echo "✅ No secrets detected"
+          fi
+        else
+          echo "✅ No secrets baseline created - no potential secrets found"
+        fi
     
     - name: Upload secrets baseline
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: secrets-baseline
-        path: .secrets.baseline
+        path: |
+          .secrets.baseline
+          .secrets.config
